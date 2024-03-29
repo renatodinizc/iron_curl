@@ -23,32 +23,6 @@ pub async fn execute() {
     make_request(input).await
 }
 
-async fn make_request(input: Input) {
-    let match_method = |url| match input.method {
-        HTTPMethod::Get => Client::new().get(url),
-        HTTPMethod::Post => Client::new().post(url),
-        HTTPMethod::Patch => Client::new().patch(url),
-        HTTPMethod::Put => Client::new().put(url),
-        HTTPMethod::Delete => Client::new().delete(url),
-    };
-
-    let set_each_header = |mut req_builder: RequestBuilder| {
-        for header in input.headers.iter() {
-            let (key, value) = header.split_once(':').unwrap();
-            req_builder = req_builder.header(key, value);
-        }
-
-        req_builder
-    };
-
-    stream::iter(input.urls.into_iter().map(match_method))
-        .map(set_each_header)
-        .for_each_concurrent(None, |req_builder| async move {
-            execute_request(req_builder).await;
-        })
-        .await;
-}
-
 fn get_args() -> Input {
     let matches = command!()
     .arg(
@@ -99,6 +73,32 @@ fn get_args() -> Input {
         method,
         headers,
     }
+}
+
+async fn make_request(input: Input) {
+    let match_method = |url| match input.method {
+        HTTPMethod::Get => Client::new().get(url),
+        HTTPMethod::Post => Client::new().post(url),
+        HTTPMethod::Patch => Client::new().patch(url),
+        HTTPMethod::Put => Client::new().put(url),
+        HTTPMethod::Delete => Client::new().delete(url),
+    };
+
+    let set_each_header = |mut req_builder: RequestBuilder| {
+        for header in input.headers.iter() {
+            let (key, value) = header.split_once(':').unwrap();
+            req_builder = req_builder.header(key, value);
+        }
+
+        req_builder
+    };
+
+    stream::iter(input.urls.into_iter().map(match_method))
+        .map(set_each_header)
+        .for_each_concurrent(None, |req_builder| async move {
+            execute_request(req_builder).await;
+        })
+        .await;
 }
 
 async fn execute_request(req_builder: RequestBuilder) {
@@ -163,7 +163,7 @@ mod tests {
             method: HTTPMethod::Post,
             headers: vec![
                 "Content-Type: application/json".into(),
-                "Authorization: Bearer d6a715d502462ee00e67c4457d872d72ffa34c00".into(),
+                "Authorization: FakeBearer d6a715d502462ee00e67c4457d872d72ffa34c00".into(),
             ],
         };
 
@@ -174,7 +174,7 @@ mod tests {
                   "Accept": "*/*",
                   "Content-Length": "0",
                   "Content-Type": "application/json",
-                  "Authorization": "Bearer d6a715d502462ee00e67c4457d872d72ffa34c00",
+                  "Authorization": "FakeBearer d6a715d502462ee00e67c4457d872d72ffa34c00",
                   "Host": "httpbin.org",
                   "X-Amzn-Trace-Id": "Root=1-6606bb7c-47f2b4960cd65d50161aa61d"
                 },
@@ -186,7 +186,7 @@ mod tests {
         Mock::given(header("Content-Type", "application/json"))
             .and(header(
                 "Authorization",
-                "Bearer d6a715d502462ee00e67c4457d872d72ffa34c00",
+                "FakeBearer d6a715d502462ee00e67c4457d872d72ffa34c00",
             ))
             .and(method("POST"))
             .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
