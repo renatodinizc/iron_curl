@@ -64,7 +64,7 @@ fn get_args() -> Input {
 
     let headers = matches
         .get_many::<String>("headers")
-        .unwrap()
+        .unwrap_or_default()
         .map(|v| v.to_string())
         .collect::<Vec<String>>();
 
@@ -122,12 +122,12 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
-    async fn make_get_request_successfully() {
+    async fn make_get_request() {
         let mock_server = MockServer::start().await;
         let input = Input {
             urls: vec![mock_server.uri()],
             method: HTTPMethod::Get,
-            headers: vec!["Content-Type: application/json".into()],
+            headers: vec![],
         };
 
         let expected_response = serde_json::json!(
@@ -136,7 +136,6 @@ mod tests {
                 "headers": {
                   "Accept": "*/*",
                   "Content-Length": "0",
-                  "Content-Type": "application/json",
                   "Host": "httpbin.org",
                   "X-Amzn-Trace-Id": "Root=1-6606bb7c-47f2b4960cd65d50161aa61d"
                 },
@@ -145,8 +144,7 @@ mod tests {
               }
         );
 
-        Mock::given(header("Content-Type", "application/json"))
-            .and(method("GET"))
+        Mock::given(method("GET"))
             .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
             .expect(1)
             .mount(&mock_server)
@@ -156,7 +154,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn make_post_request_successfully() {
+    async fn make_post_request_with_headers() {
         let mock_server = MockServer::start().await;
         let input = Input {
             urls: vec![mock_server.uri()],
