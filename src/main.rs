@@ -1,5 +1,6 @@
 use iron_curl::execute;
 
-fn main() {
-    execute();
+#[tokio::main]
+async fn main() {
+    execute().await;
 }

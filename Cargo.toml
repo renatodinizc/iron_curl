@@ -14,4 +14,8 @@ name = "iron_curl"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["cargo"] }
-reqwest = "0.12.2"
+reqwest = { version = "0.12.2", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
+futures = "0.3.30"

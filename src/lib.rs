@@ -1,25 +1,60 @@
 use clap::{command, Arg, ArgAction};
-
-pub fn execute() {
-    let input = get_args();
-
-    println!("{:#?}", input);
-}
+use futures::stream::{self, StreamExt};
+use reqwest::{Client, RequestBuilder};
+use serde_json::Value;
 
 #[derive(Debug)]
 struct Input {
-    url: Vec<String>,
+    urls: Vec<String>,
     method: HTTPMethod,
     headers: Vec<String>,
 }
 
 #[derive(Debug)]
 enum HTTPMethod {
-    POST,
-    GET,
-    PATCH,
-    PUT,
-    DELETE,
+    Post,
+    Get,
+    Patch,
+    Put,
+    Delete,
+}
+
+pub async fn execute() {
+    let input = get_args();
+
+    stream::iter(input.urls.into_iter().map(|url| match input.method {
+        HTTPMethod::Get => Client::new().get(url),
+        HTTPMethod::Post => Client::new().post(url),
+        HTTPMethod::Patch => Client::new().patch(url),
+        HTTPMethod::Put => Client::new().put(url),
+        HTTPMethod::Delete => Client::new().delete(url),
+    }))
+    .map(|mut req_builder| {
+        for header in input.headers.iter() {
+            let (key, value) = header.split_once(':').unwrap();
+            req_builder = req_builder.header(key, value);
+        }
+
+        req_builder
+    })
+    .for_each_concurrent(None, |req_builder| async move {
+        execute_request(req_builder).await;
+    })
+    .await;
+}
+
+async fn execute_request(req_builder: RequestBuilder) {
+    let response = req_builder
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    let response_body = response
+        .json::<Value>()
+        .await
+        .expect("Failed to deserialize response body.");
+
+    println!("{}", response_body);
 }
 
 fn get_args() -> Input {
@@ -46,19 +81,19 @@ fn get_args() -> Input {
   )
     .get_matches();
 
-    let url = matches
+    let urls = matches
         .get_many::<String>("url")
         .unwrap()
         .map(|v| v.to_string())
         .collect::<Vec<String>>();
 
     let method = match &matches.get_one::<String>("method").unwrap()[..] {
-        "GET" => HTTPMethod::GET,
-        "POST" => HTTPMethod::POST,
-        "PATCH" => HTTPMethod::PATCH,
-        "PUT" => HTTPMethod::PUT,
-        "DELETE" => HTTPMethod::DELETE,
-        _ => panic!("Inaproppriate request method"),
+        "GET" => HTTPMethod::Get,
+        "POST" => HTTPMethod::Post,
+        "PATCH" => HTTPMethod::Patch,
+        "PUT" => HTTPMethod::Put,
+        "DELETE" => HTTPMethod::Delete,
+        _ => panic!("Inappropriate request method"),
     };
 
     let headers = matches
@@ -68,7 +103,7 @@ fn get_args() -> Input {
         .collect::<Vec<String>>();
 
     Input {
-        url,
+        urls,
         method,
         headers,
     }
