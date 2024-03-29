@@ -73,8 +73,6 @@ Send a POST request with headers and body data:
 
 We welcome contributions! If you've found a bug or have a feature request, please open an issue. If you're ready to contribute code, please submit a pull request with your changes.
 
-Before contributing, please read our contributing guidelines (link to guidelines).
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.

@@ -174,6 +174,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn make_multiple_requests() {
+        let mock_server = MockServer::start().await;
+        let input = Input {
+            urls: vec![mock_server.uri(), mock_server.uri()],
+            method: HTTPMethod::Get,
+            headers: vec![],
+            data: None,
+        };
+
+        let expected_response = serde_json::json!(
+            {
+                "args": {},
+                "headers": {
+                  "Accept": "*/*",
+                  "Content-Length": "0",
+                  "Host": "httpbin.org",
+                  "X-Amzn-Trace-Id": "Root=1-6606bb7c-47f2b4960cd65d50161aa61d"
+                },
+                "origin": "179.54.218.77",
+                "url": "https://httpbin.org/get"
+              }
+        );
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        make_request(input).await
+    }
+
+    #[tokio::test]
     async fn make_post_request_with_headers_and_body() {
         let mock_server = MockServer::start().await;
         let input = Input {
