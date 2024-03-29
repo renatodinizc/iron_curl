@@ -48,7 +48,6 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
-    
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable

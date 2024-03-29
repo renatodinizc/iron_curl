@@ -3,14 +3,12 @@ use futures::stream::{self, StreamExt};
 use reqwest::{Client, RequestBuilder};
 use serde_json::Value;
 
-#[derive(Debug)]
 struct Input {
     urls: Vec<String>,
     method: HTTPMethod,
     headers: Vec<String>,
 }
 
-#[derive(Debug)]
 enum HTTPMethod {
     Post,
     Get,
