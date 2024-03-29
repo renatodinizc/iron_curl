@@ -7,6 +7,7 @@ struct Input {
     urls: Vec<String>,
     method: HTTPMethod,
     headers: Vec<String>,
+    data: Option<String>,
 }
 
 enum HTTPMethod {
@@ -41,6 +42,12 @@ fn get_args() -> Input {
         .action(ArgAction::Append)
     )
     .arg(
+        Arg::new("data")
+        .help("Sends the specified data in a POST request to the HTTP server.")
+        .short('d')
+        .long("data")
+    )
+    .arg(
       Arg::new("url")
           .help("url to be use")
           .action(ArgAction::Append)
@@ -68,10 +75,13 @@ fn get_args() -> Input {
         .map(|v| v.to_string())
         .collect::<Vec<String>>();
 
+    let data = matches.get_one::<String>("data").cloned();
+
     Input {
         urls,
         method,
         headers,
+        data,
     }
 }
 
@@ -93,8 +103,17 @@ async fn make_request(input: Input) {
         req_builder
     };
 
+    let set_data_body = |mut req_builder: RequestBuilder| match input.data.to_owned() {
+        None => req_builder,
+        Some(data) => {
+            req_builder = req_builder.body(data);
+            req_builder
+        }
+    };
+
     stream::iter(input.urls.into_iter().map(match_method))
         .map(set_each_header)
+        .map(set_data_body)
         .for_each_concurrent(None, |req_builder| async move {
             execute_request(req_builder).await;
         })
@@ -118,7 +137,7 @@ async fn execute_request(req_builder: RequestBuilder) {
 #[cfg(test)]
 mod tests {
     use crate::{make_request, HTTPMethod, Input};
-    use wiremock::matchers::{header, method};
+    use wiremock::matchers::{body_json, header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
@@ -128,6 +147,7 @@ mod tests {
             urls: vec![mock_server.uri()],
             method: HTTPMethod::Get,
             headers: vec![],
+            data: None,
         };
 
         let expected_response = serde_json::json!(
@@ -154,7 +174,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn make_post_request_with_headers() {
+    async fn make_post_request_with_headers_and_body() {
         let mock_server = MockServer::start().await;
         let input = Input {
             urls: vec![mock_server.uri()],
@@ -163,11 +183,13 @@ mod tests {
                 "Content-Type: application/json".into(),
                 "Authorization: FakeBearer d6a715d502462ee00e67c4457d872d72ffa34c00".into(),
             ],
+            data: Some(r#"{"key1":"value1", "key2":"value2"}"#.into()),
         };
 
         let expected_response = serde_json::json!(
             {
                 "args": {},
+                "data": "{\"key1\":\"value1\", \"key2\":\"value2\"}",
                 "headers": {
                   "Accept": "*/*",
                   "Content-Length": "0",
@@ -176,6 +198,10 @@ mod tests {
                   "Host": "httpbin.org",
                   "X-Amzn-Trace-Id": "Root=1-6606bb7c-47f2b4960cd65d50161aa61d"
                 },
+                "json": {
+                    "key1": "value1",
+                    "key2": "value2"
+                  },
                 "origin": "179.54.218.77",
                 "url": "https://httpbin.org/post"
               }
@@ -187,6 +213,9 @@ mod tests {
                 "FakeBearer d6a715d502462ee00e67c4457d872d72ffa34c00",
             ))
             .and(method("POST"))
+            .and(body_json(
+                serde_json::json!({"key1": "value1", "key2": "value2"}),
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
             .expect(1)
             .mount(&mock_server)
