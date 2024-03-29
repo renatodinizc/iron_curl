@@ -8,7 +8,7 @@
                                                                    
 ```
 
-`iron_curl` is an asynchronous Rust library designed to simplify HTTP request handling by providing a versatile interface for making requests, processing responses, and handling HTTP methods.
+`iron_curl` is an asynchronous Rust cli tool designed to simplify HTTP request handling by providing a versatile interface for making requests, processing responses, and handling HTTP methods.
 
 ## Features
 
