@@ -20,39 +20,29 @@ enum HTTPMethod {
 pub async fn execute() {
     let input = get_args();
 
-    stream::iter(input.urls.into_iter().map(|url| match input.method {
+    let match_method = |url| match input.method {
         HTTPMethod::Get => Client::new().get(url),
         HTTPMethod::Post => Client::new().post(url),
         HTTPMethod::Patch => Client::new().patch(url),
         HTTPMethod::Put => Client::new().put(url),
         HTTPMethod::Delete => Client::new().delete(url),
-    }))
-    .map(|mut req_builder| {
+    };
+
+    let set_each_header = |mut req_builder: RequestBuilder| {
         for header in input.headers.iter() {
             let (key, value) = header.split_once(':').unwrap();
             req_builder = req_builder.header(key, value);
         }
 
         req_builder
-    })
-    .for_each_concurrent(None, |req_builder| async move {
-        execute_request(req_builder).await;
-    })
-    .await;
-}
+    };
 
-async fn execute_request(req_builder: RequestBuilder) {
-    let response = req_builder
-        .send()
-        .await
-        .expect("Failed to execute request.");
-
-    let response_body = response
-        .json::<Value>()
-        .await
-        .expect("Failed to deserialize response body.");
-
-    println!("{}", response_body);
+    stream::iter(input.urls.into_iter().map(match_method))
+        .map(set_each_header)
+        .for_each_concurrent(None, |req_builder| async move {
+            execute_request(req_builder).await;
+        })
+        .await;
 }
 
 fn get_args() -> Input {
@@ -105,4 +95,18 @@ fn get_args() -> Input {
         method,
         headers,
     }
+}
+
+async fn execute_request(req_builder: RequestBuilder) {
+    let response = req_builder
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    let response_body = response
+        .json::<Value>()
+        .await
+        .expect("Failed to deserialize response body.");
+
+    println!("{}", response_body);
 }
