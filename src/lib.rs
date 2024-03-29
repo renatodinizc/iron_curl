@@ -20,6 +20,10 @@ enum HTTPMethod {
 pub async fn execute() {
     let input = get_args();
 
+    make_request(input).await
+}
+
+async fn make_request(input: Input) {
     let match_method = |url| match input.method {
         HTTPMethod::Get => Client::new().get(url),
         HTTPMethod::Post => Client::new().post(url),
@@ -109,4 +113,87 @@ async fn execute_request(req_builder: RequestBuilder) {
         .expect("Failed to deserialize response body.");
 
     println!("{}", response_body);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{make_request, HTTPMethod, Input};
+    use wiremock::matchers::{header, method};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn make_get_request_successfully() {
+        let mock_server = MockServer::start().await;
+        let input = Input {
+            urls: vec![mock_server.uri()],
+            method: HTTPMethod::Get,
+            headers: vec!["Content-Type: application/json".into()],
+        };
+
+        let expected_response = serde_json::json!(
+            {
+                "args": {},
+                "headers": {
+                  "Accept": "*/*",
+                  "Content-Length": "0",
+                  "Content-Type": "application/json",
+                  "Host": "httpbin.org",
+                  "X-Amzn-Trace-Id": "Root=1-6606bb7c-47f2b4960cd65d50161aa61d"
+                },
+                "origin": "179.54.218.77",
+                "url": "https://httpbin.org/get"
+              }
+        );
+
+        Mock::given(header("Content-Type", "application/json"))
+            .and(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        make_request(input).await
+    }
+
+    #[tokio::test]
+    async fn make_post_request_successfully() {
+        let mock_server = MockServer::start().await;
+        let input = Input {
+            urls: vec![mock_server.uri()],
+            method: HTTPMethod::Post,
+            headers: vec![
+                "Content-Type: application/json".into(),
+                "Authorization: Bearer d6a715d502462ee00e67c4457d872d72ffa34c00".into(),
+            ],
+        };
+
+        let expected_response = serde_json::json!(
+            {
+                "args": {},
+                "headers": {
+                  "Accept": "*/*",
+                  "Content-Length": "0",
+                  "Content-Type": "application/json",
+                  "Authorization": "Bearer d6a715d502462ee00e67c4457d872d72ffa34c00",
+                  "Host": "httpbin.org",
+                  "X-Amzn-Trace-Id": "Root=1-6606bb7c-47f2b4960cd65d50161aa61d"
+                },
+                "origin": "179.54.218.77",
+                "url": "https://httpbin.org/post"
+              }
+        );
+
+        Mock::given(header("Content-Type", "application/json"))
+            .and(header(
+                "Authorization",
+                "Bearer d6a715d502462ee00e67c4457d872d72ffa34c00",
+            ))
+            .and(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        make_request(input).await
+    }
 }
